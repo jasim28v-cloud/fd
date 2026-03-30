@@ -27,7 +27,7 @@
             height: 100vh;
         }
 
-        /* شاشة تسجيل الدخول / إنشاء حساب */
+        /* شاشة تسجيل الدخول */
         .auth-screen {
             position: fixed;
             inset: 0;
@@ -63,7 +63,6 @@
             background: #fafafa;
             border: 1px solid #dbdbdb;
             font-size: 14px;
-            transition: all 0.2s;
         }
         .auth-card input:focus {
             outline: none;
@@ -80,7 +79,6 @@
             color: white;
             font-weight: 600;
             cursor: pointer;
-            transition: 0.2s;
         }
         .auth-card button:active { transform: scale(0.98); }
         .auth-card .google-btn {
@@ -92,7 +90,6 @@
             justify-content: center;
             gap: 12px;
         }
-        .auth-card .google-btn i { font-size: 20px; }
         .auth-card .divider {
             display: flex;
             align-items: center;
@@ -117,14 +114,6 @@
             color: #ec489a;
             text-decoration: none;
             font-weight: 600;
-        }
-        .auth-card .forgot-link {
-            display: block;
-            text-align: left;
-            font-size: 12px;
-            color: #8e8e8e;
-            margin-top: 4px;
-            text-decoration: none;
         }
         .error-msg {
             color: #ff4444;
@@ -320,16 +309,14 @@
 </head>
 <body>
 
-<!-- شاشة تسجيل الدخول / إنشاء حساب -->
+<!-- شاشة تسجيل الدخول -->
 <div id="authScreen" class="auth-screen">
     <div class="auth-card">
         <h1>InstaPics</h1>
         
-        <!-- نموذج تسجيل الدخول -->
         <div id="loginForm">
             <input type="email" id="loginEmail" placeholder="Email">
             <input type="password" id="loginPassword" placeholder="Password">
-            <a href="#" class="forgot-link">Forgot your password?</a>
             <button onclick="login()">SIGN IN</button>
             <div class="divider"><span>OR</span></div>
             <button class="google-btn" onclick="alert('Google Sign-In قيد التطوير')"><i class="fab fa-google"></i> CONTINUE WITH GOOGLE</button>
@@ -337,7 +324,6 @@
             <div id="loginMsg" class="error-msg"></div>
         </div>
 
-        <!-- نموذج إنشاء حساب -->
         <div id="registerForm" style="display:none">
             <input type="text" id="regName" placeholder="Username">
             <input type="email" id="regEmail" placeholder="Email">
@@ -392,7 +378,7 @@
         <div id="uploadStatus" class="text-center mt-4"></div>
     </div>
 
-    <!-- مودال عرض الصورة -->
+    <!-- مودال الصورة -->
     <div id="imageModal" class="modal">
         <div class="modal-close" onclick="closeModal()">&times;</div>
         <div class="modal-content">
