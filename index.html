@@ -80,7 +80,6 @@
             font-weight: 600;
             cursor: pointer;
         }
-        .auth-card button:active { transform: scale(0.98); }
         .auth-card .google-btn {
             background: #fff;
             border: 1px solid #dbdbdb;
@@ -305,6 +304,161 @@
             margin: 0 auto;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* صفحة الملف الشخصي */
+        .profile-panel {
+            position: fixed;
+            inset: 0;
+            background: #fff;
+            z-index: 300;
+            transform: translateX(100%);
+            transition: 0.3s;
+            overflow-y: auto;
+        }
+        .profile-panel.open {
+            transform: translateX(0);
+        }
+        .profile-header {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #ec489a, #3b82f6);
+            color: white;
+        }
+        .profile-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin: 0 auto;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .profile-stats {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin: 20px 0;
+        }
+        .profile-stats div { text-align: center; }
+        .profile-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .profile-btn {
+            padding: 8px 24px;
+            border-radius: 30px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+        }
+        .profile-btn-primary {
+            background: #ec489a;
+            color: white;
+        }
+        .profile-btn-secondary {
+            background: #efefef;
+            color: #262626;
+        }
+        .posts-grid-profile {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            margin-top: 16px;
+        }
+
+        /* صفحة الدردشة */
+        .chat-panel {
+            position: fixed;
+            inset: 0;
+            background: #fff;
+            z-index: 350;
+            transform: translateX(100%);
+            transition: 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-panel.open { transform: translateX(0); }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .chat-message {
+            display: flex;
+            gap: 8px;
+            max-width: 85%;
+        }
+        .chat-message.sent { align-self: flex-end; flex-direction: row-reverse; }
+        .message-bubble {
+            background: #efefef;
+            padding: 8px 12px;
+            border-radius: 18px;
+        }
+        .message-bubble.sent { background: #ec489a; color: white; }
+        .chat-input {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            border-top: 1px solid #dbdbdb;
+            background: white;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #dbdbdb;
+            border-radius: 30px;
+        }
+        .conversations-list {
+            padding: 16px;
+            overflow-y: auto;
+        }
+        .conversation-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-bottom: 1px solid #dbdbdb;
+            cursor: pointer;
+        }
+
+        /* لوحة الأدمن */
+        .admin-panel {
+            background: #fff3f0;
+            border: 1px solid #ec489a;
+            border-radius: 16px;
+            padding: 16px;
+            margin: 20px;
+        }
+        .admin-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .admin-stat {
+            background: #f0f0f0;
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .admin-delete-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -335,7 +489,7 @@
             <div class="link">Already have an account? <a href="#" onclick="switchToLogin()">Sign In</a></div>
             <div id="regMsg" class="error-msg"></div>
         </div>
-        <div class="version">الإصدار 1.0 | مارس 2026</div>
+        <div class="version">الإصدار 2.0 | مارس 2026</div>
     </div>
 </div>
 
@@ -346,6 +500,7 @@
         <div class="top-icons">
             <i class="fas fa-search top-icon" onclick="openSearch()"></i>
             <i class="far fa-heart top-icon" onclick="openNotifications()"></i>
+            <i class="far fa-envelope top-icon" onclick="openConversations()"></i>
         </div>
     </div>
 
@@ -392,9 +547,64 @@
                 <div class="flex gap-4">
                     <button class="flex items-center gap-1" id="modalLikeBtn"><i class="far fa-heart"></i> <span id="modalLikes">0</span></button>
                     <button class="flex items-center gap-1" onclick="openCommentsModal()"><i class="far fa-comment"></i> <span id="modalComments">0</span></button>
+                    <button class="flex items-center gap-1" onclick="openMessageUser()"><i class="far fa-envelope"></i></button>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- صفحة الملف الشخصي -->
+    <div id="profilePanel" class="profile-panel">
+        <div class="flex justify-between items-center p-4 border-b">
+            <h3 class="font-bold">الملف الشخصي</h3>
+            <button onclick="closeProfile()" class="text-2xl">&times;</button>
+        </div>
+        <div class="profile-header">
+            <div class="profile-avatar" id="profileAvatar" onclick="changeAvatar()">👤</div>
+            <h2 id="profileName" class="mt-2"></h2>
+            <p id="profileBio" class="text-sm opacity-80"></p>
+            <div class="profile-stats">
+                <div><div class="text-xl font-bold" id="profilePostsCount">0</div><div>منشورات</div></div>
+                <div><div class="text-xl font-bold" id="profileFollowersCount">0</div><div>متابع</div></div>
+                <div><div class="text-xl font-bold" id="profileFollowingCount">0</div><div>يتابع</div></div>
+            </div>
+            <div id="profileButtons" class="profile-buttons"></div>
+        </div>
+        <div id="profilePostsGrid" class="posts-grid-profile"></div>
+        
+        <!-- لوحة الأدمن (تظهر فقط للمشرف) -->
+        <div id="adminPanel" style="display:none" class="admin-panel">
+            <h3 class="font-bold text-pink-500 mb-3">🔧 لوحة تحكم الأدمن</h3>
+            <div class="admin-stats" id="adminStats"></div>
+            <div id="adminUsersList"></div>
+        </div>
+    </div>
+
+    <!-- صفحة الدردشة -->
+    <div id="chatPanel" class="chat-panel">
+        <div class="flex justify-between items-center p-4 border-b">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center" id="chatAvatar">👤</div>
+                <h3 id="chatUserName">محادثة</h3>
+            </div>
+            <button onclick="closeChat()" class="text-2xl">&times;</button>
+        </div>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="chat-input">
+            <div class="cursor-pointer text-2xl" onclick="document.getElementById('chatImageInput').click()"><i class="fas fa-image"></i></div>
+            <input type="file" id="chatImageInput" accept="image/*" style="display:none" onchange="sendChatImage(this)">
+            <input type="text" id="chatMessageInput" placeholder="اكتب رسالة...">
+            <button onclick="sendChatMessage()" class="bg-pink-500 text-white px-4 rounded-full"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <!-- قائمة المحادثات -->
+    <div id="conversationsPanel" class="chat-panel">
+        <div class="flex justify-between items-center p-4 border-b">
+            <h3>الرسائل</h3>
+            <button onclick="closeConversations()" class="text-2xl">&times;</button>
+        </div>
+        <div id="conversationsList" class="conversations-list"></div>
     </div>
 </div>
 
