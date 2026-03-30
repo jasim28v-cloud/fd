@@ -11,7 +11,7 @@ let currentChatUserId = null;
 let viewingProfileUserId = null;
 let currentModalPost = null;
 let mediaRecorder = null;
-let audioChunks = [];
+let unreadNotifications = 0;
 
 // ========== إعدادات الأدمن ==========
 const ADMIN_EMAILS = ['jasim28v@gmail.com'];
@@ -58,7 +58,7 @@ window.register = async function() {
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await set(ref(db, `users/${userCredential.user.uid}`), {
-            username, email, bio: '', avatarUrl: '', followers: {}, following: {}, totalLikes: 0, createdAt: Date.now()
+            username, email, bio: '', avatarUrl: '', coverUrl: '', followers: {}, following: {}, totalLikes: 0, createdAt: Date.now()
         });
         msg.innerText = '';
     } catch (error) {
@@ -160,6 +160,7 @@ window.toggleLikeModal = async function() {
     } else {
         likes++; likedBy[currentUser.uid] = true;
         showHeartAnimation();
+        await addNotification(post.sender, 'like');
     }
     await update(postRef, { likes, likedBy });
     currentModalPost.likes = likes;
@@ -193,6 +194,7 @@ window.addComment = async function() {
         timestamp: Date.now()
     };
     await push(ref(db, `posts/${currentModalPost.id}/comments`), comment);
+    await addNotification(currentModalPost.sender, 'comment');
     if (!currentModalPost.comments) currentModalPost.comments = {};
     const newId = Date.now();
     currentModalPost.comments[newId] = comment;
@@ -279,6 +281,11 @@ async function loadProfileData(userId) {
     const userSnap = await get(child(ref(db), `users/${userId}`));
     const user = userSnap.val();
     if (!user) return;
+    // الغلاف
+    const coverEl = document.getElementById('profileCover');
+    if (user.coverUrl) coverEl.style.background = `url(${user.coverUrl}) center/cover`;
+    else coverEl.style.background = 'linear-gradient(135deg, #ec489a, #3b82f6)';
+    // الصورة الشخصية
     document.getElementById('profileAvatar').innerHTML = user.avatarUrl ? `<img src="${user.avatarUrl}">` : (user.username?.charAt(0) || '👤');
     document.getElementById('profileName').innerText = user.username;
     document.getElementById('profileBio').innerText = user.bio || '';
@@ -347,6 +354,7 @@ window.openEditProfile = function() {
     if (newUsername || newBio !== null) location.reload();
 };
 window.changeAvatar = function() { document.getElementById('avatarInput').click(); };
+window.changeCover = function() { document.getElementById('coverInput').click(); };
 document.getElementById('avatarInput')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -356,12 +364,27 @@ document.getElementById('avatarInput')?.addEventListener('change', async (e) => 
     await update(ref(db, `users/${currentUser.uid}`), { avatarUrl: data.secure_url });
     location.reload();
 });
+document.getElementById('coverInput')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file); fd.append('upload_preset', UPLOAD_PRESET);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
+    const data = await res.json();
+    await update(ref(db, `users/${currentUser.uid}`), { coverUrl: data.secure_url });
+    location.reload();
+});
 const avatarInput = document.createElement('input');
 avatarInput.type = 'file';
 avatarInput.accept = 'image/*';
 avatarInput.id = 'avatarInput';
 avatarInput.style.display = 'none';
 document.body.appendChild(avatarInput);
+const coverInput = document.createElement('input');
+coverInput.type = 'file';
+coverInput.accept = 'image/*';
+coverInput.id = 'coverInput';
+coverInput.style.display = 'none';
+document.body.appendChild(coverInput);
 
 // ========== المتابعة ==========
 window.toggleFollow = async function(userId, btn) {
@@ -371,11 +394,52 @@ window.toggleFollow = async function(userId, btn) {
     const snap = await get(userRef);
     if (snap.exists()) {
         await set(userRef, null); await set(targetRef, null); btn.innerText = 'متابعة';
+        await addNotification(userId, 'unfollow');
     } else {
         await set(userRef, true); await set(targetRef, true); btn.innerText = 'متابع';
+        await addNotification(userId, 'follow');
     }
     if (viewingProfileUserId === userId) await loadProfileData(userId);
 };
+
+// ========== الإشعارات ==========
+async function addNotification(targetUserId, type) {
+    if (targetUserId === currentUser.uid) return;
+    const fromUser = currentUserData;
+    const messages = { like: 'أعجب بصورتك', comment: 'علق على صورتك', follow: 'بدأ بمتابعتك', unfollow: 'توقف عن متابعتك' };
+    await push(ref(db, `notifications/${targetUserId}`), {
+        type, fromUserId: currentUser.uid, fromUsername: fromUser.username, message: messages[type], timestamp: Date.now(), read: false
+    });
+    updateNotificationBadge();
+}
+
+function updateNotificationBadge() {
+    onValue(ref(db, `notifications/${currentUser?.uid}`), (snap) => {
+        const notifs = snap.val() || {};
+        const unread = Object.values(notifs).filter(n => !n.read).length;
+        const icon = document.getElementById('notifIcon');
+        if (unread > 0) {
+            icon.innerHTML = `<i class="fas fa-heart text-pink-500"></i><span class="notification-badge">${unread}</span>`;
+        } else {
+            icon.innerHTML = '<i class="far fa-heart"></i>';
+        }
+    });
+}
+
+window.openNotifications = async function() {
+    const panel = document.getElementById('notificationsPanel');
+    const snap = await get(child(ref(db), `notifications/${currentUser.uid}`));
+    const notifs = snap.val() || {};
+    const container = document.getElementById('notificationsList');
+    container.innerHTML = '';
+    Object.values(notifs).reverse().forEach(n => {
+        container.innerHTML += `<div class="notification-item"><i class="fas ${n.type === 'like' ? 'fa-heart text-pink-500' : n.type === 'comment' ? 'fa-comment text-blue-500' : 'fa-user-plus text-green-500'}"></i><div><div class="font-bold">${n.fromUsername}</div><div class="text-sm text-gray-500">${n.message}</div></div></div>`;
+        if (!n.read) update(ref(db, `notifications/${currentUser.uid}/${Object.keys(notifs).find(k => notifs[k] === n)}`), { read: true });
+    });
+    panel.classList.add('open');
+    updateNotificationBadge();
+};
+window.closeNotifications = function() { document.getElementById('notificationsPanel').classList.remove('open'); };
 
 // ========== الدردشة الخاصة ==========
 function getChatId(uid1, uid2) { return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`; }
@@ -493,15 +557,14 @@ window.startRecording = async function() {
     }
 };
 
-// ========== البحث والإشعارات ==========
+// ========== البحث ==========
 window.openSearch = function() { alert('ميزة البحث قيد التطوير'); };
-window.openNotifications = function() { alert('ميزة الإشعارات قيد التطوير'); };
 
 // ========== التنقل ==========
 window.switchTab = function(tab) {
     document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
     event.target.closest('.nav-item').classList.add('active');
-    if (tab === 'home') { closeUploadPanel(); closeProfile(); closeChat(); closeConversations(); }
+    if (tab === 'home') { closeUploadPanel(); closeProfile(); closeChat(); closeConversations(); closeNotifications(); }
 };
 
 // ========== مراقبة المستخدم ==========
@@ -512,6 +575,7 @@ onAuthStateChanged(auth, async (user) => {
         isAdmin = ADMIN_EMAILS.includes(currentUser.email);
         document.getElementById('authScreen').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
+        updateNotificationBadge();
     } else {
         document.getElementById('authScreen').style.display = 'flex';
         document.getElementById('mainApp').style.display = 'none';
