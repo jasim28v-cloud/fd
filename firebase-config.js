@@ -3,13 +3,13 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth
 import { getDatabase, ref, push, set, onValue, update, get, child } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDr5RBcJ9gcHTdElXxazcEWMBoTYzC_CaU",
-    authDomain: "foxe-3f428.firebaseapp.com",
-    databaseURL: "https://foxe-3f428-default-rtdb.firebaseio.com",
-    projectId: "foxe-3f428",
-    storageBucket: "foxe-3f428.firebasestorage.app",
-    messagingSenderId: "763563407239",
-    appId: "1:763563407239:web:4e558a73bffb5e6e1e8522"
+    apiKey: "AIzaSyC8rvv7OihIJbTPz8wLNPPEURP6HeGXPos",
+    authDomain: "coco-989ec.firebaseapp.com",
+    databaseURL: "https://coco-989ec-default-rtdb.firebaseio.com",
+    projectId: "coco-989ec",
+    storageBucket: "coco-989ec.firebasestorage.app",
+    messagingSenderId: "476879537305",
+    appId: "1:476879537305:web:4bd41c433cb4a1efba6408"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -18,8 +18,8 @@ export const db = getDatabase(app);
 
 export { ref, push, set, onValue, update, get, child };
 
-// Cloudinary
+// Cloudinary Configuration – محدثة
 export const CLOUD_NAME = 'dnmpmysk6';
-export const UPLOAD_PRESET = 'rsxdfdgw';
+export const UPLOAD_PRESET = 'do_2gg';
 
 console.log('✅ InstaPics Ready');
