@@ -9,6 +9,9 @@ let allPosts = [];
 let selectedImageFile = null;
 let currentChatUserId = null;
 let viewingProfileUserId = null;
+let currentModalPost = null;
+let mediaRecorder = null;
+let audioChunks = [];
 
 // ========== إعدادات الأدمن ==========
 const ADMIN_EMAILS = ['jasim28v@gmail.com'];
@@ -107,10 +110,9 @@ function renderFeed() {
     });
 }
 
-// ========== فتح الصورة في المودال ==========
-let currentPost = null;
+// ========== المودال ==========
 window.openModal = function(post) {
-    currentPost = post;
+    currentModalPost = post;
     const user = allUsers[post.sender] || { username: post.senderName || 'user', avatarUrl: '' };
     const isLiked = post.likedBy && post.likedBy[currentUser?.uid];
     document.getElementById('modalImage').src = post.imageUrl;
@@ -120,19 +122,35 @@ window.openModal = function(post) {
     document.getElementById('modalCaption').innerText = post.caption || '';
     document.getElementById('modalLikes').innerText = post.likes || 0;
     document.getElementById('modalComments').innerText = Object.keys(post.comments || {}).length;
+    
     const likeBtn = document.getElementById('modalLikeBtn');
-    likeBtn.innerHTML = `<i class="fas ${isLiked ? 'fa-heart' : 'fa-heart'}"></i> <span>${post.likes || 0}</span>`;
-    likeBtn.className = `flex items-center gap-1 ${isLiked ? 'text-pink-500' : ''}`;
-    likeBtn.onclick = () => toggleLikeModal(post.id);
+    likeBtn.innerHTML = `<i class="far fa-heart"></i> <span>${post.likes || 0}</span>`;
+    likeBtn.className = `modal-action ${isLiked ? 'active' : ''}`;
+    likeBtn.onclick = () => toggleLikeModal();
+    
+    renderComments();
     document.getElementById('imageModal').classList.add('active');
 };
-window.closeModal = function() {
-    document.getElementById('imageModal').classList.remove('active');
-    currentPost = null;
-};
-window.toggleLikeModal = async function(postId) {
-    if (!currentUser) return;
-    const postRef = ref(db, `posts/${postId}`);
+
+function renderComments() {
+    const container = document.getElementById('modalCommentsList');
+    if (!currentModalPost) return;
+    const comments = currentModalPost.comments || {};
+    container.innerHTML = '';
+    Object.values(comments).reverse().forEach(c => {
+        const user = allUsers[c.userId] || { username: c.username || 'user' };
+        container.innerHTML += `
+            <div class="comment-item">
+                <div class="comment-username">${user.username}</div>
+                <div>${c.text}</div>
+            </div>
+        `;
+    });
+}
+
+window.toggleLikeModal = async function() {
+    if (!currentUser || !currentModalPost) return;
+    const postRef = ref(db, `posts/${currentModalPost.id}`);
     const snap = await get(postRef);
     const post = snap.val();
     let likes = post.likes || 0;
@@ -141,18 +159,61 @@ window.toggleLikeModal = async function(postId) {
         likes--; delete likedBy[currentUser.uid];
     } else {
         likes++; likedBy[currentUser.uid] = true;
+        showHeartAnimation();
     }
     await update(postRef, { likes, likedBy });
-    if (currentPost && currentPost.id === postId) {
-        currentPost.likes = likes;
-        currentPost.likedBy = likedBy;
-        document.getElementById('modalLikes').innerText = likes;
-        const isLiked = likedBy[currentUser.uid];
-        const likeBtn = document.getElementById('modalLikeBtn');
-        likeBtn.innerHTML = `<i class="fas ${isLiked ? 'fa-heart' : 'fa-heart'}"></i> <span>${likes}</span>`;
-        likeBtn.className = `flex items-center gap-1 ${isLiked ? 'text-pink-500' : ''}`;
-    }
+    currentModalPost.likes = likes;
+    currentModalPost.likedBy = likedBy;
+    document.getElementById('modalLikes').innerText = likes;
+    const isLiked = likedBy[currentUser.uid];
+    const likeBtn = document.getElementById('modalLikeBtn');
+    likeBtn.innerHTML = `<i class="far fa-heart"></i> <span>${likes}</span>`;
+    likeBtn.className = `modal-action ${isLiked ? 'active' : ''}`;
     renderFeed();
+};
+
+function showHeartAnimation() {
+    const heart = document.createElement('div');
+    heart.className = 'heart-animation';
+    heart.innerHTML = '❤️';
+    heart.style.left = (window.innerWidth / 2) + 'px';
+    heart.style.top = (window.innerHeight / 2) + 'px';
+    document.body.appendChild(heart);
+    setTimeout(() => heart.remove(), 600);
+}
+
+window.addComment = async function() {
+    const input = document.getElementById('commentInput');
+    const text = input.value.trim();
+    if (!text || !currentModalPost) return;
+    const comment = {
+        userId: currentUser.uid,
+        username: currentUserData?.username,
+        text: text,
+        timestamp: Date.now()
+    };
+    await push(ref(db, `posts/${currentModalPost.id}/comments`), comment);
+    if (!currentModalPost.comments) currentModalPost.comments = {};
+    const newId = Date.now();
+    currentModalPost.comments[newId] = comment;
+    renderComments();
+    input.value = '';
+    document.getElementById('modalComments').innerText = Object.keys(currentModalPost.comments).length;
+    renderFeed();
+};
+
+window.sharePost = function() {
+    if (navigator.share) navigator.share({ title: 'InstaPics', url: currentModalPost?.imageUrl });
+    else { navigator.clipboard.writeText(currentModalPost?.imageUrl); alert('✅ تم نسخ الرابط'); }
+};
+
+window.openMessageFromModal = function() {
+    if (currentModalPost) openPrivateChat(currentModalPost.sender);
+};
+
+window.closeModal = function() {
+    document.getElementById('imageModal').classList.remove('active');
+    currentModalPost = null;
 };
 
 // ========== رفع صورة ==========
@@ -228,7 +289,7 @@ async function loadProfileData(userId) {
     document.getElementById('profileFollowingCount').innerText = Object.keys(user.following || {}).length;
     
     const grid = document.getElementById('profilePostsGrid');
-    grid.innerHTML = userPosts.map(p => `<div class="aspect-square bg-gray-100 cursor-pointer" onclick="window.open('${p.imageUrl}','_blank')"><img src="${p.imageUrl}" class="w-full h-full object-cover"></div>`).join('');
+    grid.innerHTML = userPosts.map(p => `<div class="aspect-square bg-gray-100 cursor-pointer" onclick="openModal(p)"><img src="${p.imageUrl}" class="w-full h-full object-cover"></div>`).join('');
     
     const buttonsDiv = document.getElementById('profileButtons');
     buttonsDiv.innerHTML = '';
@@ -240,7 +301,6 @@ async function loadProfileData(userId) {
                                 <button class="profile-btn profile-btn-secondary" onclick="openPrivateChat('${userId}')"><i class="fas fa-envelope"></i> مراسلة</button>`;
     }
     
-    // لوحة الأدمن
     const adminPanel = document.getElementById('adminPanel');
     if (isAdmin && userId === currentUser.uid) {
         adminPanel.style.display = 'block';
@@ -361,6 +421,7 @@ async function loadPrivateMessages(otherUserId) {
         let content = '';
         if (msg.type === 'text') content = `<div class="message-bubble ${isSent ? 'sent' : 'received'}">${msg.text}</div>`;
         else if (msg.type === 'image') content = `<img src="${msg.imageUrl}" class="message-image max-w-[200px] rounded-lg cursor-pointer" onclick="window.open('${msg.imageUrl}')">`;
+        else if (msg.type === 'audio') content = `<div class="message-audio"><audio controls><source src="${msg.audioUrl}" type="audio/mp3"></audio></div>`;
         container.innerHTML += `<div class="chat-message ${isSent ? 'sent' : 'received'}"><div>${content}<div class="text-[10px] opacity-50 mt-1">${time}</div></div></div>`;
     }
     if (container.innerHTML === '') container.innerHTML = '<div class="text-center text-gray-500 py-10">لا توجد رسائل بعد</div>';
@@ -391,11 +452,50 @@ window.sendChatImage = async function(input) {
     await loadPrivateMessages(currentChatUserId);
 };
 
+// ========== تسجيل الصوت ==========
+let mediaRecorderInstance = null;
+let audioChunksList = [];
+
+window.startRecording = async function() {
+    const btn = document.getElementById('recordBtn');
+    if (mediaRecorderInstance && mediaRecorderInstance.state === 'recording') {
+        mediaRecorderInstance.stop();
+        btn.innerHTML = '<i class="fas fa-microphone"></i>';
+        return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorderInstance = new MediaRecorder(stream);
+        audioChunksList = [];
+        mediaRecorderInstance.ondataavailable = (event) => {
+            audioChunksList.push(event.data);
+        };
+        mediaRecorderInstance.onstop = async () => {
+            const audioBlob = new Blob(audioChunksList, { type: 'audio/mp3' });
+            const fd = new FormData();
+            fd.append('file', audioBlob, 'audio.mp3');
+            fd.append('upload_preset', UPLOAD_PRESET);
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`, { method: 'POST', body: fd });
+            const data = await res.json();
+            if (currentChatUserId) {
+                const chatId = getChatId(currentUser.uid, currentChatUserId);
+                await push(ref(db, `private_messages/${chatId}`), { senderId: currentUser.uid, senderName: currentUserData?.username, audioUrl: data.secure_url, type: 'audio', timestamp: Date.now() });
+                await set(ref(db, `private_chats/${currentUser.uid}/${currentChatUserId}`), { lastMessage: '🎤 رسالة صوتية', lastTimestamp: Date.now(), withUser: currentChatUserId });
+                await set(ref(db, `private_chats/${currentChatUserId}/${currentUser.uid}`), { lastMessage: '🎤 رسالة صوتية', lastTimestamp: Date.now(), withUser: currentUser.uid });
+                await loadPrivateMessages(currentChatUserId);
+            }
+            stream.getTracks().forEach(track => track.stop());
+        };
+        mediaRecorderInstance.start();
+        btn.innerHTML = '<i class="fas fa-stop-circle text-red-500"></i>';
+    } catch (err) {
+        alert('لا يمكن الوصول إلى الميكروفون');
+    }
+};
+
 // ========== البحث والإشعارات ==========
 window.openSearch = function() { alert('ميزة البحث قيد التطوير'); };
 window.openNotifications = function() { alert('ميزة الإشعارات قيد التطوير'); };
-window.openCommentsModal = function() { alert('ميزة التعليقات قيد التطوير'); };
-window.openMessageUser = function() { if (currentPost) openPrivateChat(currentPost.sender); };
 
 // ========== التنقل ==========
 window.switchTab = function(tab) {
