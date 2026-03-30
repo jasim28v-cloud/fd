@@ -132,6 +132,7 @@
             height: 100vh;
             background: #fafafa;
             overflow-y: auto;
+            scroll-snap-type: y mandatory;
             padding-bottom: 70px;
         }
 
@@ -162,6 +163,21 @@
             font-size: 24px;
             color: #262626;
             cursor: pointer;
+            position: relative;
+        }
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -8px;
+            background: #ec489a;
+            color: white;
+            font-size: 10px;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         /* شبكة الصور */
@@ -209,7 +225,7 @@
             font-weight: bold;
         }
 
-        /* مودال الصورة (قالب ثابت أنيق) */
+        /* مودال الصورة */
         .modal {
             position: fixed;
             inset: 0;
@@ -408,18 +424,25 @@
         .profile-panel.open {
             transform: translateX(0);
         }
+        .profile-cover {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, #ec489a, #3b82f6);
+            object-fit: cover;
+            cursor: pointer;
+        }
         .profile-header {
             text-align: center;
-            padding: 40px 20px;
-            background: linear-gradient(135deg, #ec489a, #3b82f6);
-            color: white;
+            padding: 0 20px 20px;
+            position: relative;
         }
         .profile-avatar {
             width: 100px;
             height: 100px;
             border-radius: 50%;
-            margin: 0 auto;
+            margin: -50px auto 10px;
             background: white;
+            border: 3px solid white;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -562,7 +585,27 @@
             cursor: pointer;
         }
 
-        /* تاريخ الإصدار */
+        /* لوحة الإشعارات */
+        .notifications-panel {
+            position: fixed;
+            inset: 0;
+            background: #fff;
+            z-index: 400;
+            transform: translateX(100%);
+            transition: 0.3s;
+            overflow-y: auto;
+        }
+        .notifications-panel.open {
+            transform: translateX(0);
+        }
+        .notification-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            border-bottom: 1px solid #efefef;
+        }
+
         .footer-version {
             text-align: center;
             padding: 20px;
@@ -614,7 +657,7 @@
             <div class="link">Already have an account? <a href="#" onclick="switchToLogin()">Sign In</a></div>
             <div id="regMsg" class="error-msg"></div>
         </div>
-        <div class="version">الإصدار 3.0 | مارس 2026</div>
+        <div class="version">الإصدار 4.0 | مارس 2026</div>
     </div>
 </div>
 
@@ -624,7 +667,7 @@
         <div class="logo">InstaPics</div>
         <div class="top-icons">
             <i class="fas fa-search top-icon" onclick="openSearch()"></i>
-            <i class="far fa-heart top-icon" onclick="openNotifications()"></i>
+            <i class="far fa-heart top-icon" onclick="openNotifications()" id="notifIcon"></i>
             <i class="far fa-envelope top-icon" onclick="openConversations()"></i>
         </div>
     </div>
@@ -658,7 +701,7 @@
         <div id="uploadStatus" class="text-center mt-4"></div>
     </div>
 
-    <!-- مودال الصورة (قالب ثابت أنيق) -->
+    <!-- مودال الصورة -->
     <div id="imageModal" class="modal">
         <div class="modal-close" onclick="closeModal()">&times;</div>
         <div class="modal-content">
@@ -695,6 +738,7 @@
             <h3 class="font-bold">الملف الشخصي</h3>
             <button onclick="closeProfile()" class="text-2xl">&times;</button>
         </div>
+        <div id="profileCover" class="profile-cover" onclick="changeCover()"></div>
         <div class="profile-header">
             <div class="profile-avatar" id="profileAvatar" onclick="changeAvatar()">👤</div>
             <h2 id="profileName" class="mt-2"></h2>
@@ -713,7 +757,7 @@
             <div class="admin-stats" id="adminStats"></div>
             <div id="adminUsersList"></div>
         </div>
-        <div class="footer-version">الإصدار 3.0 | مارس 2026 - InstaPics</div>
+        <div class="footer-version">الإصدار 4.0 | مارس 2026 - InstaPics</div>
     </div>
 
     <!-- صفحة الدردشة -->
@@ -742,6 +786,15 @@
             <button onclick="closeConversations()" class="text-2xl">&times;</button>
         </div>
         <div id="conversationsList" class="conversations-list"></div>
+    </div>
+
+    <!-- لوحة الإشعارات -->
+    <div id="notificationsPanel" class="notifications-panel">
+        <div class="flex justify-between items-center p-4 border-b">
+            <h3>الإشعارات</h3>
+            <button onclick="closeNotifications()" class="text-2xl">&times;</button>
+        </div>
+        <div id="notificationsList"></div>
     </div>
 </div>
 
