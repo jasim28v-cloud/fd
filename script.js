@@ -8,7 +8,7 @@ let allUsers = {};
 let allPosts = [];
 let selectedImageFile = null;
 
-// ========== تبديل بين نماذج المصادقة ==========
+// ========== تبديل بين النماذج ==========
 window.switchToRegister = function() {
     document.getElementById('loginForm').style.display = 'none';
     document.getElementById('registerForm').style.display = 'block';
@@ -87,7 +87,6 @@ function renderFeed() {
     }
     allPosts.forEach(post => {
         const user = allUsers[post.sender] || { username: post.senderName || 'user', avatarUrl: '' };
-        const isLiked = post.likedBy && post.likedBy[currentUser?.uid];
         const div = document.createElement('div');
         div.className = 'post-item';
         div.innerHTML = `
@@ -102,7 +101,7 @@ function renderFeed() {
     });
 }
 
-// ========== فتح الصورة في مودال ==========
+// ========== فتح الصورة في المودال ==========
 let currentPost = null;
 window.openModal = function(post) {
     currentPost = post;
@@ -199,26 +198,19 @@ window.uploadPost = async function() {
     }
 };
 
-// ========== البحث ==========
+// ========== البحث والإشعارات (مبدئية) ==========
 window.openSearch = function() { alert('ميزة البحث قيد التطوير'); };
 window.openNotifications = function() { alert('ميزة الإشعارات قيد التطوير'); };
-
-// ========== الملف الشخصي ==========
 window.openMyProfile = async function() {
     if (!currentUser) return;
-    await loadProfileData(currentUser.uid);
     alert('سيتم عرض الملف الشخصي قريباً');
 };
-async function loadProfileData(userId) {
-    // سيتم إكمالها لاحقاً
-}
 
 // ========== التنقل ==========
 window.switchTab = function(tab) {
     document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
     event.target.closest('.nav-item').classList.add('active');
     if (tab === 'home') closeUploadPanel();
-    if (tab === 'profile') openMyProfile();
 };
 
 // ========== مراقبة المستخدم ==========
