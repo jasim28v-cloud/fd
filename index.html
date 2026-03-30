@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>InstaPics | منصة عرض الصور</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js",
+                "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js",
+                "firebase/database": "https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js"
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #fafafa;
+            color: #262626;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* شاشة تسجيل الدخول / إنشاء حساب */
+        .auth-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .auth-card {
+            background: #fff;
+            border-radius: 24px;
+            padding: 40px 32px;
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0,0,0,0.05);
+            border: 1px solid #dbdbdb;
+        }
+        .auth-card h1 {
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, #ec489a, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .auth-card input {
+            width: 100%;
+            padding: 14px 16px;
+            margin: 8px 0;
+            border-radius: 12px;
+            background: #fafafa;
+            border: 1px solid #dbdbdb;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .auth-card input:focus {
+            outline: none;
+            border-color: #ec489a;
+            background: #fff;
+        }
+        .auth-card button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 16px;
+            background: #ec489a;
+            border: none;
+            border-radius: 30px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .auth-card button:active { transform: scale(0.98); }
+        .auth-card .google-btn {
+            background: #fff;
+            border: 1px solid #dbdbdb;
+            color: #262626;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .auth-card .google-btn i { font-size: 20px; }
+        .auth-card .divider {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+            color: #8e8e8e;
+            font-size: 13px;
+        }
+        .auth-card .divider::before,
+        .auth-card .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #dbdbdb;
+        }
+        .auth-card .divider span { margin: 0 12px; }
+        .auth-card .link {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #8e8e8e;
+        }
+        .auth-card .link a {
+            color: #ec489a;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .auth-card .forgot-link {
+            display: block;
+            text-align: left;
+            font-size: 12px;
+            color: #8e8e8e;
+            margin-top: 4px;
+            text-decoration: none;
+        }
+        .error-msg {
+            color: #ff4444;
+            font-size: 12px;
+            margin-top: 8px;
+            text-align: center;
+        }
+        .version {
+            font-size: 10px;
+            color: #8e8e8e;
+            margin-top: 24px;
+        }
+
+        /* التطبيق الرئيسي */
+        #mainApp {
+            display: none;
+            height: 100vh;
+            background: #fafafa;
+            overflow-y: auto;
+        }
+
+        /* شريط علوي */
+        .top-bar {
+            position: sticky;
+            top: 0;
+            background: #fff;
+            border-bottom: 1px solid #dbdbdb;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 50;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #ec489a, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .top-icons {
+            display: flex;
+            gap: 20px;
+        }
+        .top-icon {
+            font-size: 24px;
+            color: #262626;
+            cursor: pointer;
+        }
+
+        /* شبكة الصور */
+        .posts-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            padding: 2px;
+        }
+        .post-item {
+            aspect-ratio: 1;
+            background: #efefef;
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+        }
+        .post-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .post-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            color: white;
+        }
+        .post-item:hover .post-overlay {
+            opacity: 1;
+        }
+        .post-overlay span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: bold;
+        }
+
+        /* مودال الصورة */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            max-width: 90%;
+            max-height: 90%;
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            width: 100%;
+            max-width: 800px;
+        }
+        .modal-image {
+            width: 100%;
+            max-height: 500px;
+            object-fit: contain;
+        }
+        .modal-info {
+            padding: 16px;
+            border-top: 1px solid #efefef;
+        }
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 30px;
+            color: white;
+            cursor: pointer;
+        }
+
+        /* شريط سفلي */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-top: 1px solid #dbdbdb;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0 14px;
+            z-index: 100;
+        }
+        .nav-item {
+            background: none;
+            border: none;
+            font-size: 26px;
+            color: #8e8e8e;
+            cursor: pointer;
+        }
+        .nav-item.active {
+            color: #ec489a;
+        }
+
+        /* لوحة الرفع */
+        .upload-panel {
+            position: fixed;
+            inset: 0;
+            background: #fff;
+            z-index: 150;
+            transform: translateY(100%);
+            transition: 0.3s;
+            overflow-y: auto;
+        }
+        .upload-panel.open {
+            transform: translateY(0);
+        }
+        .upload-area {
+            border: 2px dashed #dbdbdb;
+            border-radius: 20px;
+            padding: 60px 20px;
+            text-align: center;
+            margin: 20px;
+            cursor: pointer;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #8e8e8e;
+        }
+        .spinner {
+            width: 36px;
+            height: 36px;
+            border: 3px solid rgba(236,72,153,0.3);
+            border-top-color: #ec489a;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<!-- شاشة تسجيل الدخول / إنشاء حساب -->
+<div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+        <h1>InstaPics</h1>
+        
+        <!-- نموذج تسجيل الدخول -->
+        <div id="loginForm">
+            <input type="email" id="loginEmail" placeholder="Email">
+            <input type="password" id="loginPassword" placeholder="Password">
+            <a href="#" class="forgot-link">Forgot your password?</a>
+            <button onclick="login()">SIGN IN</button>
+            <div class="divider"><span>OR</span></div>
+            <button class="google-btn" onclick="alert('Google Sign-In قيد التطوير')"><i class="fab fa-google"></i> CONTINUE WITH GOOGLE</button>
+            <div class="link">Don't you have an account? <a href="#" onclick="switchToRegister()">Sign Up</a></div>
+            <div id="loginMsg" class="error-msg"></div>
+        </div>
+
+        <!-- نموذج إنشاء حساب -->
+        <div id="registerForm" style="display:none">
+            <input type="text" id="regName" placeholder="Username">
+            <input type="email" id="regEmail" placeholder="Email">
+            <input type="password" id="regPass" placeholder="Password">
+            <input type="password" id="regConfirmPass" placeholder="Confirm password">
+            <button onclick="register()">SIGN UP</button>
+            <div class="divider"><span>OR</span></div>
+            <button class="google-btn" onclick="alert('Google Sign-In قيد التطوير')"><i class="fab fa-google"></i> CONTINUE WITH GOOGLE</button>
+            <div class="link">Already have an account? <a href="#" onclick="switchToLogin()">Sign In</a></div>
+            <div id="regMsg" class="error-msg"></div>
+        </div>
+        <div class="version">الإصدار 1.0 | مارس 2026</div>
+    </div>
+</div>
+
+<!-- التطبيق الرئيسي -->
+<div id="mainApp">
+    <div class="top-bar">
+        <div class="logo">InstaPics</div>
+        <div class="top-icons">
+            <i class="fas fa-search top-icon" onclick="openSearch()"></i>
+            <i class="far fa-heart top-icon" onclick="openNotifications()"></i>
+        </div>
+    </div>
+
+    <div id="feedContainer" class="posts-grid">
+        <div class="loading"><div class="spinner"></div><span>جاري التحميل...</span></div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-item active" onclick="switchTab('home')"><i class="fas fa-home"></i></button>
+        <button class="nav-item" onclick="openUploadPanel()"><i class="fas fa-plus-square"></i></button>
+        <button class="nav-item" onclick="openMyProfile()"><i class="fas fa-user"></i></button>
+    </div>
+
+    <!-- لوحة الرفع -->
+    <div id="uploadPanel" class="upload-panel">
+        <div class="flex justify-between items-center p-4 border-b">
+            <h3 class="font-bold">رفع صورة جديدة</h3>
+            <button onclick="closeUploadPanel()" class="text-2xl">&times;</button>
+        </div>
+        <div class="upload-area" onclick="document.getElementById('postImageInput').click()">
+            <i class="fas fa-cloud-upload-alt fa-3x text-pink-500"></i>
+            <p class="mt-2">اضغط لاختيار صورة</p>
+        </div>
+        <input type="file" id="postImageInput" accept="image/*" style="display:none" onchange="previewImage(this)">
+        <div id="imagePreview" class="text-center p-4" style="display:none">
+            <img id="previewImg" class="max-h-64 mx-auto rounded-lg">
+        </div>
+        <textarea id="postCaption" class="w-[calc(100%-32px)] mx-4 p-3 border rounded-xl mt-4" rows="3" placeholder="اكتب وصفاً... استخدم # للهاشتاقات"></textarea>
+        <button onclick="uploadPost()" class="w-[calc(100%-32px)] mx-4 mt-4 bg-pink-500 text-white p-3 rounded-xl font-bold">نشر</button>
+        <div id="uploadStatus" class="text-center mt-4"></div>
+    </div>
+
+    <!-- مودال عرض الصورة -->
+    <div id="imageModal" class="modal">
+        <div class="modal-close" onclick="closeModal()">&times;</div>
+        <div class="modal-content">
+            <img id="modalImage" class="modal-image">
+            <div class="modal-info">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center" id="modalAvatar">👤</div>
+                    <div><div class="font-bold" id="modalUsername"></div><div class="text-sm text-gray-500" id="modalTime"></div></div>
+                </div>
+                <p id="modalCaption" class="mb-2"></p>
+                <div class="flex gap-4">
+                    <button class="flex items-center gap-1" id="modalLikeBtn"><i class="far fa-heart"></i> <span id="modalLikes">0</span></button>
+                    <button class="flex items-center gap-1" onclick="openCommentsModal()"><i class="far fa-comment"></i> <span id="modalComments">0</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="firebase-config.js"></script>
+<script type="module" src="script.js"></script>
+</body>
+</html>
