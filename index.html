@@ -132,6 +132,7 @@
             height: 100vh;
             background: #fafafa;
             overflow-y: auto;
+            padding-bottom: 70px;
         }
 
         /* شريط علوي */
@@ -181,6 +182,10 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            transition: transform 0.3s;
+        }
+        .post-item:hover img {
+            transform: scale(1.05);
         }
         .post-overlay {
             position: absolute;
@@ -204,7 +209,7 @@
             font-weight: bold;
         }
 
-        /* مودال الصورة */
+        /* مودال الصورة (قالب ثابت أنيق) */
         .modal {
             position: fixed;
             inset: 0;
@@ -221,19 +226,97 @@
             max-width: 90%;
             max-height: 90%;
             background: #fff;
-            border-radius: 16px;
+            border-radius: 20px;
             overflow: hidden;
             width: 100%;
-            max-width: 800px;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-image-container {
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            max-height: 70vh;
+            overflow: hidden;
         }
         .modal-image {
-            width: 100%;
-            max-height: 500px;
+            max-width: 100%;
+            max-height: 70vh;
             object-fit: contain;
         }
         .modal-info {
-            padding: 16px;
+            padding: 20px;
+            background: #fff;
+        }
+        .modal-author {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .modal-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #ec489a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .modal-caption {
+            margin-bottom: 12px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #efefef;
+        }
+        .modal-action {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: none;
+            border: none;
+            font-size: 22px;
+            cursor: pointer;
+            color: #262626;
+        }
+        .modal-action.active {
+            color: #ec489a;
+        }
+        .modal-comments {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .comment-item {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
+        .comment-username {
+            font-weight: bold;
+        }
+        .add-comment {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            padding-top: 12px;
             border-top: 1px solid #efefef;
+        }
+        .add-comment input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #dbdbdb;
+            border-radius: 30px;
+            font-size: 13px;
         }
         .modal-close {
             position: absolute;
@@ -242,6 +325,13 @@
             font-size: 30px;
             color: white;
             cursor: pointer;
+            background: rgba(0,0,0,0.5);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         /* شريط سفلي */
@@ -405,6 +495,12 @@
             border-radius: 18px;
         }
         .message-bubble.sent { background: #ec489a; color: white; }
+        .message-audio {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .message-audio audio { height: 40px; }
         .chat-input {
             display: flex;
             gap: 12px;
@@ -417,6 +513,12 @@
             padding: 10px;
             border: 1px solid #dbdbdb;
             border-radius: 30px;
+        }
+        .chat-input button {
+            background: none;
+            border: none;
+            font-size: 22px;
+            cursor: pointer;
         }
         .conversations-list {
             padding: 16px;
@@ -459,6 +561,29 @@
             border-radius: 20px;
             cursor: pointer;
         }
+
+        /* تاريخ الإصدار */
+        .footer-version {
+            text-align: center;
+            padding: 20px;
+            font-size: 11px;
+            color: #8e8e8e;
+            border-top: 1px solid #efefef;
+            margin-top: 20px;
+        }
+
+        .heart-animation {
+            position: fixed;
+            font-size: 60px;
+            color: #ec489a;
+            pointer-events: none;
+            z-index: 1000;
+            animation: heartFloat 0.6s ease-out forwards;
+        }
+        @keyframes heartFloat {
+            0% { transform: scale(0.5) translateY(0); opacity: 1; }
+            100% { transform: scale(1.2) translateY(-60px); opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -489,7 +614,7 @@
             <div class="link">Already have an account? <a href="#" onclick="switchToLogin()">Sign In</a></div>
             <div id="regMsg" class="error-msg"></div>
         </div>
-        <div class="version">الإصدار 2.0 | مارس 2026</div>
+        <div class="version">الإصدار 3.0 | مارس 2026</div>
     </div>
 </div>
 
@@ -533,21 +658,32 @@
         <div id="uploadStatus" class="text-center mt-4"></div>
     </div>
 
-    <!-- مودال الصورة -->
+    <!-- مودال الصورة (قالب ثابت أنيق) -->
     <div id="imageModal" class="modal">
         <div class="modal-close" onclick="closeModal()">&times;</div>
         <div class="modal-content">
-            <img id="modalImage" class="modal-image">
+            <div class="modal-image-container">
+                <img id="modalImage" class="modal-image">
+            </div>
             <div class="modal-info">
-                <div class="flex items-center gap-3 mb-2">
-                    <div class="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center" id="modalAvatar">👤</div>
-                    <div><div class="font-bold" id="modalUsername"></div><div class="text-sm text-gray-500" id="modalTime"></div></div>
+                <div class="modal-author">
+                    <div class="modal-avatar" id="modalAvatar">👤</div>
+                    <div>
+                        <div class="font-bold" id="modalUsername"></div>
+                        <div class="text-xs text-gray-500" id="modalTime"></div>
+                    </div>
                 </div>
-                <p id="modalCaption" class="mb-2"></p>
-                <div class="flex gap-4">
-                    <button class="flex items-center gap-1" id="modalLikeBtn"><i class="far fa-heart"></i> <span id="modalLikes">0</span></button>
-                    <button class="flex items-center gap-1" onclick="openCommentsModal()"><i class="far fa-comment"></i> <span id="modalComments">0</span></button>
-                    <button class="flex items-center gap-1" onclick="openMessageUser()"><i class="far fa-envelope"></i></button>
+                <div class="modal-caption" id="modalCaption"></div>
+                <div class="modal-actions">
+                    <button class="modal-action" id="modalLikeBtn"><i class="far fa-heart"></i> <span id="modalLikes">0</span></button>
+                    <button class="modal-action" id="modalCommentBtn"><i class="far fa-comment"></i> <span id="modalComments">0</span></button>
+                    <button class="modal-action" onclick="sharePost()"><i class="fas fa-share-alt"></i></button>
+                    <button class="modal-action" onclick="openMessageFromModal()"><i class="far fa-envelope"></i></button>
+                </div>
+                <div id="modalCommentsList" class="modal-comments"></div>
+                <div class="add-comment">
+                    <input type="text" id="commentInput" placeholder="أضف تعليقاً...">
+                    <button onclick="addComment()" class="text-pink-500">نشر</button>
                 </div>
             </div>
         </div>
@@ -572,12 +708,12 @@
         </div>
         <div id="profilePostsGrid" class="posts-grid-profile"></div>
         
-        <!-- لوحة الأدمن (تظهر فقط للمشرف) -->
         <div id="adminPanel" style="display:none" class="admin-panel">
             <h3 class="font-bold text-pink-500 mb-3">🔧 لوحة تحكم الأدمن</h3>
             <div class="admin-stats" id="adminStats"></div>
             <div id="adminUsersList"></div>
         </div>
+        <div class="footer-version">الإصدار 3.0 | مارس 2026 - InstaPics</div>
     </div>
 
     <!-- صفحة الدردشة -->
@@ -591,10 +727,11 @@
         </div>
         <div id="chatMessages" class="chat-messages"></div>
         <div class="chat-input">
-            <div class="cursor-pointer text-2xl" onclick="document.getElementById('chatImageInput').click()"><i class="fas fa-image"></i></div>
+            <button onclick="startRecording()" id="recordBtn"><i class="fas fa-microphone"></i></button>
             <input type="file" id="chatImageInput" accept="image/*" style="display:none" onchange="sendChatImage(this)">
+            <button onclick="document.getElementById('chatImageInput').click()"><i class="fas fa-image"></i></button>
             <input type="text" id="chatMessageInput" placeholder="اكتب رسالة...">
-            <button onclick="sendChatMessage()" class="bg-pink-500 text-white px-4 rounded-full"><i class="fas fa-paper-plane"></i></button>
+            <button onclick="sendChatMessage()"><i class="fas fa-paper-plane"></i></button>
         </div>
     </div>
 
