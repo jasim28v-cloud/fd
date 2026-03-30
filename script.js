@@ -7,6 +7,12 @@ let currentUserData = null;
 let allUsers = {};
 let allPosts = [];
 let selectedImageFile = null;
+let currentChatUserId = null;
+let viewingProfileUserId = null;
+
+// ========== إعدادات الأدمن ==========
+const ADMIN_EMAILS = ['jasim28v@gmail.com'];
+let isAdmin = false;
 
 // ========== تبديل بين النماذج ==========
 window.switchToRegister = function() {
@@ -198,19 +204,204 @@ window.uploadPost = async function() {
     }
 };
 
-// ========== البحث والإشعارات (مبدئية) ==========
+// ========== الملف الشخصي ==========
+window.openMyProfile = function() { viewProfile(currentUser.uid); };
+window.viewProfile = async function(userId) {
+    if (!userId) return;
+    viewingProfileUserId = userId;
+    await loadProfileData(userId);
+    document.getElementById('profilePanel').classList.add('open');
+};
+window.closeProfile = function() { document.getElementById('profilePanel').classList.remove('open'); viewingProfileUserId = null; };
+
+async function loadProfileData(userId) {
+    const userSnap = await get(child(ref(db), `users/${userId}`));
+    const user = userSnap.val();
+    if (!user) return;
+    document.getElementById('profileAvatar').innerHTML = user.avatarUrl ? `<img src="${user.avatarUrl}">` : (user.username?.charAt(0) || '👤');
+    document.getElementById('profileName').innerText = user.username;
+    document.getElementById('profileBio').innerText = user.bio || '';
+    
+    const userPosts = allPosts.filter(p => p.sender === userId);
+    document.getElementById('profilePostsCount').innerText = userPosts.length;
+    document.getElementById('profileFollowersCount').innerText = Object.keys(user.followers || {}).length;
+    document.getElementById('profileFollowingCount').innerText = Object.keys(user.following || {}).length;
+    
+    const grid = document.getElementById('profilePostsGrid');
+    grid.innerHTML = userPosts.map(p => `<div class="aspect-square bg-gray-100 cursor-pointer" onclick="window.open('${p.imageUrl}','_blank')"><img src="${p.imageUrl}" class="w-full h-full object-cover"></div>`).join('');
+    
+    const buttonsDiv = document.getElementById('profileButtons');
+    buttonsDiv.innerHTML = '';
+    if (userId === currentUser.uid) {
+        buttonsDiv.innerHTML = `<button class="profile-btn profile-btn-primary" onclick="openEditProfile()">تعديل الملف</button><button class="profile-btn profile-btn-secondary" onclick="logout()">تسجيل خروج</button>`;
+    } else {
+        const isFollowing = currentUserData?.following && currentUserData.following[userId];
+        buttonsDiv.innerHTML = `<button class="profile-btn profile-btn-primary" onclick="toggleFollow('${userId}', this)">${isFollowing ? 'متابع' : 'متابعة'}</button>
+                                <button class="profile-btn profile-btn-secondary" onclick="openPrivateChat('${userId}')"><i class="fas fa-envelope"></i> مراسلة</button>`;
+    }
+    
+    // لوحة الأدمن
+    const adminPanel = document.getElementById('adminPanel');
+    if (isAdmin && userId === currentUser.uid) {
+        adminPanel.style.display = 'block';
+        await loadAdminPanel();
+    } else {
+        adminPanel.style.display = 'none';
+    }
+}
+
+async function loadAdminPanel() {
+    const statsDiv = document.getElementById('adminStats');
+    const usersListDiv = document.getElementById('adminUsersList');
+    statsDiv.innerHTML = `
+        <div class="admin-stat"><div class="font-bold text-lg">${Object.keys(allUsers).length}</div><div>مستخدمين</div></div>
+        <div class="admin-stat"><div class="font-bold text-lg">${allPosts.length}</div><div>منشورات</div></div>
+        <div class="admin-stat"><div class="font-bold text-lg">${allPosts.reduce((s,p)=>s+(p.likes||0),0)}</div><div>إجمالي الإعجابات</div></div>
+    `;
+    usersListDiv.innerHTML = '<h4 class="font-bold mt-3">إدارة المستخدمين</h4>';
+    Object.entries(allUsers).forEach(([uid, u]) => {
+        if (uid !== currentUser.uid) {
+            usersListDiv.innerHTML += `<div class="flex justify-between items-center p-2 border-b"><span>@${u.username}</span><button class="admin-delete-btn" onclick="adminDeleteUser('${uid}')">حذف</button></div>`;
+        }
+    });
+}
+
+window.adminDeleteUser = async function(userId) {
+    if (!isAdmin) return;
+    if (confirm('حذف هذا المستخدم وجميع منشوراته؟')) {
+        const posts = allPosts.filter(p => p.sender === userId);
+        for (const post of posts) {
+            await set(ref(db, `posts/${post.id}`), null);
+        }
+        await set(ref(db, `users/${userId}`), null);
+        alert('✅ تم حذف المستخدم');
+        location.reload();
+    }
+};
+
+window.openEditProfile = function() {
+    const newUsername = prompt('اسم المستخدم الجديد:', currentUserData?.username);
+    const newBio = prompt('السيرة الذاتية:', currentUserData?.bio || '');
+    if (newUsername) update(ref(db, `users/${currentUser.uid}`), { username: newUsername });
+    if (newBio !== null) update(ref(db, `users/${currentUser.uid}`), { bio: newBio });
+    if (newUsername || newBio !== null) location.reload();
+};
+window.changeAvatar = function() { document.getElementById('avatarInput').click(); };
+document.getElementById('avatarInput')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file); fd.append('upload_preset', UPLOAD_PRESET);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
+    const data = await res.json();
+    await update(ref(db, `users/${currentUser.uid}`), { avatarUrl: data.secure_url });
+    location.reload();
+});
+const avatarInput = document.createElement('input');
+avatarInput.type = 'file';
+avatarInput.accept = 'image/*';
+avatarInput.id = 'avatarInput';
+avatarInput.style.display = 'none';
+document.body.appendChild(avatarInput);
+
+// ========== المتابعة ==========
+window.toggleFollow = async function(userId, btn) {
+    if (!currentUser || currentUser.uid === userId) return;
+    const userRef = ref(db, `users/${currentUser.uid}/following/${userId}`);
+    const targetRef = ref(db, `users/${userId}/followers/${currentUser.uid}`);
+    const snap = await get(userRef);
+    if (snap.exists()) {
+        await set(userRef, null); await set(targetRef, null); btn.innerText = 'متابعة';
+    } else {
+        await set(userRef, true); await set(targetRef, true); btn.innerText = 'متابع';
+    }
+    if (viewingProfileUserId === userId) await loadProfileData(userId);
+};
+
+// ========== الدردشة الخاصة ==========
+function getChatId(uid1, uid2) { return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`; }
+
+window.openConversations = async function() {
+    const panel = document.getElementById('conversationsPanel');
+    const container = document.getElementById('conversationsList');
+    const userId = currentUser.uid;
+    const convSnap = await get(child(ref(db), `private_chats/${userId}`));
+    const conversations = convSnap.val() || {};
+    container.innerHTML = '';
+    for (const [otherId, convData] of Object.entries(conversations)) {
+        const otherUser = allUsers[otherId];
+        if (!otherUser) continue;
+        const lastMsg = convData.lastMessage || '';
+        container.innerHTML += `<div class="conversation-item" onclick="openPrivateChat('${otherId}')"><div class="w-12 h-12 rounded-full bg-pink-500 flex items-center justify-center">${otherUser.avatarUrl ? `<img src="${otherUser.avatarUrl}" class="w-full h-full rounded-full">` : (otherUser.username?.charAt(0) || 'U')}</div><div><div class="font-bold">${otherUser.username}</div><div class="text-sm text-gray-500">${lastMsg.substring(0, 40)}</div></div></div>`;
+    }
+    if (container.innerHTML === '') container.innerHTML = '<div class="text-center text-gray-500 py-10">لا توجد محادثات بعد</div>';
+    panel.classList.add('open');
+};
+window.closeConversations = function() { document.getElementById('conversationsPanel').classList.remove('open'); };
+window.openPrivateChat = async function(otherUserId) {
+    currentChatUserId = otherUserId;
+    const user = allUsers[otherUserId];
+    document.getElementById('chatUserName').innerText = user?.username || 'مستخدم';
+    document.getElementById('chatAvatar').innerHTML = user?.avatarUrl ? `<img src="${user.avatarUrl}" class="w-full h-full rounded-full">` : (user?.username?.charAt(0) || 'U');
+    await loadPrivateMessages(otherUserId);
+    document.getElementById('chatPanel').classList.add('open');
+    closeConversations();
+};
+window.closeChat = function() { document.getElementById('chatPanel').classList.remove('open'); currentChatUserId = null; };
+async function loadPrivateMessages(otherUserId) {
+    const container = document.getElementById('chatMessages');
+    container.innerHTML = '<div class="text-center text-gray-500 py-10">جاري التحميل...</div>';
+    const chatId = getChatId(currentUser.uid, otherUserId);
+    const messagesSnap = await get(child(ref(db), `private_messages/${chatId}`));
+    const messages = messagesSnap.val() || {};
+    container.innerHTML = '';
+    const sorted = Object.entries(messages).sort((a,b)=>a[1].timestamp-b[1].timestamp);
+    for (const [id, msg] of sorted) {
+        const isSent = msg.senderId === currentUser.uid;
+        const time = new Date(msg.timestamp).toLocaleTimeString();
+        let content = '';
+        if (msg.type === 'text') content = `<div class="message-bubble ${isSent ? 'sent' : 'received'}">${msg.text}</div>`;
+        else if (msg.type === 'image') content = `<img src="${msg.imageUrl}" class="message-image max-w-[200px] rounded-lg cursor-pointer" onclick="window.open('${msg.imageUrl}')">`;
+        container.innerHTML += `<div class="chat-message ${isSent ? 'sent' : 'received'}"><div>${content}<div class="text-[10px] opacity-50 mt-1">${time}</div></div></div>`;
+    }
+    if (container.innerHTML === '') container.innerHTML = '<div class="text-center text-gray-500 py-10">لا توجد رسائل بعد</div>';
+    container.scrollTop = container.scrollHeight;
+}
+window.sendChatMessage = async function() {
+    const input = document.getElementById('chatMessageInput');
+    const text = input.value.trim();
+    if (!text || !currentChatUserId) return;
+    const chatId = getChatId(currentUser.uid, currentChatUserId);
+    await push(ref(db, `private_messages/${chatId}`), { senderId: currentUser.uid, senderName: currentUserData?.username, text, type: 'text', timestamp: Date.now() });
+    await set(ref(db, `private_chats/${currentUser.uid}/${currentChatUserId}`), { lastMessage: text, lastTimestamp: Date.now(), withUser: currentChatUserId });
+    await set(ref(db, `private_chats/${currentChatUserId}/${currentUser.uid}`), { lastMessage: text, lastTimestamp: Date.now(), withUser: currentUser.uid });
+    input.value = '';
+    await loadPrivateMessages(currentChatUserId);
+};
+window.sendChatImage = async function(input) {
+    const file = input.files[0];
+    if (!file || !currentChatUserId) return;
+    const fd = new FormData(); fd.append('file', file); fd.append('upload_preset', UPLOAD_PRESET);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: fd });
+    const data = await res.json();
+    const chatId = getChatId(currentUser.uid, currentChatUserId);
+    await push(ref(db, `private_messages/${chatId}`), { senderId: currentUser.uid, senderName: currentUserData?.username, imageUrl: data.secure_url, type: 'image', timestamp: Date.now() });
+    await set(ref(db, `private_chats/${currentUser.uid}/${currentChatUserId}`), { lastMessage: '📷 صورة', lastTimestamp: Date.now(), withUser: currentChatUserId });
+    await set(ref(db, `private_chats/${currentChatUserId}/${currentUser.uid}`), { lastMessage: '📷 صورة', lastTimestamp: Date.now(), withUser: currentUser.uid });
+    input.value = '';
+    await loadPrivateMessages(currentChatUserId);
+};
+
+// ========== البحث والإشعارات ==========
 window.openSearch = function() { alert('ميزة البحث قيد التطوير'); };
 window.openNotifications = function() { alert('ميزة الإشعارات قيد التطوير'); };
-window.openMyProfile = async function() {
-    if (!currentUser) return;
-    alert('سيتم عرض الملف الشخصي قريباً');
-};
+window.openCommentsModal = function() { alert('ميزة التعليقات قيد التطوير'); };
+window.openMessageUser = function() { if (currentPost) openPrivateChat(currentPost.sender); };
 
 // ========== التنقل ==========
 window.switchTab = function(tab) {
     document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
     event.target.closest('.nav-item').classList.add('active');
-    if (tab === 'home') closeUploadPanel();
+    if (tab === 'home') { closeUploadPanel(); closeProfile(); closeChat(); closeConversations(); }
 };
 
 // ========== مراقبة المستخدم ==========
@@ -218,6 +409,7 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         await loadUserData();
+        isAdmin = ADMIN_EMAILS.includes(currentUser.email);
         document.getElementById('authScreen').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
     } else {
